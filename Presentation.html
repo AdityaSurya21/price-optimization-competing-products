@@ -1,0 +1,714 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Competing Products Price Lab</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout concept: every level is a fixed 1280x720 (16:9) stage that is scaled to fit the window. Prices and units appear as yellow shelf labels, the unit grid is the 200 slots of shelf space. */
+:root{
+  --frame:#CFD8DF; --bg:#EDF1F4; --panel:#FFFFFF; --panel2:#E3E9EE; --ink:#0E2130; --muted:#4F6577; --line:#C6D1DA;
+  --c1:#D9480F; --c2:#2358D6; --good:#13804F; --bad:#C62839;
+  --label:#FFD84D; --labelink:#1B1A10; --xp:#F5B800;
+  --display:'Bricolage Grotesque','Segoe UI',system-ui,sans-serif;
+  --body:'Figtree','Segoe UI',system-ui,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --frame:#040B11; --bg:#09151F; --panel:#112331; --panel2:#183040; --ink:#E8F0F5; --muted:#93A9B9; --line:#27465A;
+  --c1:#FF8A4C; --c2:#7AA5FF; --good:#3DD598; --bad:#FF7482; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --frame:#040B11; --bg:#09151F; --panel:#112331; --panel2:#183040; --ink:#E8F0F5; --muted:#93A9B9; --line:#27465A;
+  --c1:#FF8A4C; --c2:#7AA5FF; --good:#3DD598; --bad:#FF7482; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--frame);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;overflow:hidden}
+.app{height:100%;display:flex;flex-direction:column;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+button{font-family:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--c2);outline-offset:2px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;line-height:1.1}
+p{margin:0}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* control bar (outside the 16:9 stage) */
+.bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;margin-bottom:10px;color:var(--ink)}
+.brand{display:flex;align-items:center;gap:10px;font:800 18px var(--display)}
+.brand-mark{display:grid;place-items:center;width:32px;height:32px;border-radius:6px;background:var(--label);color:var(--labelink);font:800 20px var(--display)}
+.tabs{display:flex;gap:6px}
+.tab{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:6px 12px;font-weight:600;cursor:pointer;display:flex;gap:7px;align-items:center;font-size:14px}
+.tab .lv{font:700 10px var(--mono);color:var(--muted);letter-spacing:.06em}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tab[aria-selected="true"] .lv{color:var(--label)}
+.xp{width:210px}
+.xp-top{display:flex;justify-content:space-between;font-size:12px;font-weight:600;gap:8px}
+.xpbar{height:7px;border-radius:99px;background:var(--panel);overflow:hidden;margin:3px 0 4px;border:1px solid var(--line)}
+.xpbar i{display:block;height:100%;width:0;background:var(--xp);transition:width .5s}
+.badges{display:flex;gap:5px}
+.badge{font:700 9px var(--mono);letter-spacing:.04em;border:1px dashed var(--muted);color:var(--muted);border-radius:5px;padding:1px 6px}
+.badge.on{border:1px solid var(--xp);background:var(--xp);color:#1B1A10}
+.timer{display:flex;align-items:center;gap:6px}
+#clock{font:700 20px var(--mono);min-width:58px;text-align:center}
+#clock.warn{color:var(--c1)} #clock.over{color:var(--bad)}
+.btn{font:600 14px var(--body);padding:8px 13px;border-radius:9px;border:1px solid var(--line);background:var(--panel);cursor:pointer}
+.btn:hover{border-color:var(--ink)}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.sm{padding:5px 10px;font-size:13px}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.clean .bar{display:none}
+.ghost{display:none;position:fixed;right:max(10px,env(safe-area-inset-right,0px));bottom:calc(8px + env(safe-area-inset-bottom,0px));opacity:.25;z-index:15}
+.ghost:hover,.ghost:focus-visible{opacity:1}
+.clean .ghost{display:block}
+
+/* the 16:9 stage */
+.frame{flex:1;min-height:0;display:flex;justify-content:center;align-items:flex-start}
+.scaler{position:relative}
+.stage{width:1280px;height:720px;position:absolute;left:0;top:0;transform-origin:0 0;background:var(--bg);padding:22px 32px;display:flex;flex-direction:column;overflow:hidden;border-radius:10px}
+.page{flex:1;min-height:0;display:flex;flex-direction:column}
+.page-head{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:12px}
+.eyebrow{font:700 12px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--c1)}
+.page-head h1{font-size:36px;font-weight:800;margin-top:3px}
+.page-head p{max-width:520px;color:var(--muted);font-size:15px;text-align:right}
+.grid{flex:1;min-height:0;display:grid;gap:16px}
+.g1{grid-template-columns:560px minmax(0,1fr)}
+.g2{grid-template-columns:620px minmax(0,1fr)}
+.g3{grid-template-columns:420px 410px minmax(0,1fr);gap:14px}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0;min-height:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+.panel h2{font-size:20px;font-weight:800}
+.panel .sub{color:var(--muted);font-size:13px;margin-top:2px}
+.note{font-size:13px;color:var(--muted)}
+
+/* shelf labels */
+.shelf{display:flex;gap:10px}
+.tag{background:var(--label);color:var(--labelink);border-radius:4px;padding:7px 12px 8px;flex:1 1 0;min-width:0;box-shadow:0 2px 0 rgba(0,0,0,.28)}
+.tag small{display:flex;align-items:center;gap:6px;font:700 11px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase}
+.tag small::before{content:"";width:9px;height:9px;border-radius:2px;background:var(--labelink)}
+.tag.k1 small::before{background:#D9480F} .tag.k2 small::before{background:#2358D6}
+.tag b{display:block;font:700 30px/1.15 var(--mono);font-variant-numeric:tabular-nums;margin-top:3px}
+.tag.sm b{font-size:22px}
+
+/* sliders */
+.srow{display:grid;grid-template-columns:150px minmax(0,1fr) 56px;gap:12px;align-items:center;margin-top:8px}
+.srow label{font-weight:600;font-size:14px}
+.srow output{font:700 15px var(--mono);text-align:right}
+input[type=range]{width:100%;height:26px;margin:0}
+.k1r{accent-color:var(--c1)} .k2r{accent-color:var(--c2)} .k0r{accent-color:var(--ink)}
+
+/* unit grid */
+.units{display:grid;grid-template-columns:repeat(20,minmax(0,1fr));gap:3px;margin-top:12px}
+.units i{aspect-ratio:1;border-radius:2px;background:var(--c2);transition:background .25s}
+.units i.a{background:var(--c1)}
+.units.pulse i:not(.a){animation:pulse .6s ease-in-out 3}
+@keyframes pulse{50%{transform:scale(.55)}}
+.legend{display:flex;gap:16px;margin-top:8px;font-size:13px;color:var(--muted)}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;background:var(--c1)}
+.legend span+span::before{background:var(--c2)}
+.delta{margin-top:4px;font-weight:600;font-size:14px;min-height:21px}
+
+/* missions */
+.mrow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px}
+.mt{display:flex;flex-direction:column;gap:8px;align-items:flex-start;text-align:left;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;min-height:88px}
+.mt[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.mt-t{font-weight:700;font-size:14px;line-height:1.25}
+.m-check{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--muted);display:grid;place-items:center;font-size:12px;font-weight:800;color:transparent}
+.mt.done .m-check{background:var(--good);border-color:var(--good);color:#fff}
+.mdetail{margin-top:10px;padding:12px 14px;border-radius:10px;background:var(--panel2);font-size:14px;min-height:118px;display:grid;gap:6px;align-content:start}
+.mdetail h3{font-size:16px;font-weight:800}
+.seg{display:flex;gap:8px;flex-wrap:wrap}
+
+/* charts */
+svg.chart{width:100%;height:auto;display:block;margin-top:8px}
+.gl{stroke:var(--line);stroke-dasharray:3 4;fill:none}
+.axl{stroke:var(--muted);fill:none}
+.tk{fill:var(--muted);font:11px var(--mono)}
+.curve{fill:none;stroke:var(--c1);stroke-width:3;stroke-linejoin:round}
+.dot{fill:var(--c1);stroke:var(--bg);stroke-width:2.5}
+.ring{fill:var(--bg);stroke:var(--ink);stroke-width:2.5}
+.clab{fill:var(--ink);font:700 11px var(--mono)}
+
+/* constraints */
+.cons{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}
+.con{display:grid;grid-template-columns:26px minmax(0,1fr);gap:0 12px;align-items:center;width:100%;text-align:left;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:7px 12px;cursor:pointer}
+.con[aria-pressed="true"]{border-color:var(--ink)}
+.con .ico{grid-row:span 2;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-weight:800;color:#fff;background:var(--bad);font-size:13px}
+.con.ok .ico{background:var(--good)}
+.con .cn{font-weight:700;font-size:14px}
+.con .cd{font:500 12px var(--mono);color:var(--muted)}
+.srow2{display:flex;justify-content:space-between;gap:12px;align-items:baseline;margin-top:12px}
+.status{font-weight:700;font-size:14px}
+.status.ok{color:var(--good)} .status.no{color:var(--bad)}
+.meter{height:10px;border-radius:99px;background:var(--panel2);overflow:hidden;margin-top:6px}
+.meter i{display:block;height:100%;width:0;background:var(--good);transition:width .4s}
+.why{margin-top:8px;font-size:13px;color:var(--muted);min-height:38px}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.stat{background:var(--panel2);border-radius:10px;padding:8px 10px;min-width:0}
+.stat small{display:block;font:700 10px var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.stat b{font:700 19px var(--mono)}
+.formula{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
+.chip{border:1px solid var(--ink);background:var(--panel);border-radius:999px;padding:7px 13px;font:700 14px var(--mono);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.op{font:700 16px var(--mono);color:var(--muted)}
+.explain{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--panel2);font-size:14px;line-height:1.4}
+.reality{margin-top:10px;padding:10px 12px;border-radius:10px;border:1px dashed var(--c1);font-size:14px;min-height:92px}
+
+/* level 3 */
+.pipe{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.stg{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 14px;text-align:left;cursor:pointer;height:56px}
+.stg small{font:700 10px var(--mono);letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.stg b{display:block;font:800 18px var(--display);margin-top:1px}
+.stg[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.stg[aria-pressed="true"] small{color:var(--label)}
+.stg.hot{background:var(--label);color:var(--labelink);border-color:var(--label)}
+.stg.hot small{color:var(--labelink)}
+.stg.hot[aria-pressed="true"]{outline:3px solid var(--ink)}
+.pipeText{margin:8px 0 12px;height:44px;display:flex;align-items:center;padding:6px 14px;border-radius:10px;background:var(--panel2);font-size:14px;line-height:1.35}
+.code{background:#0B1720;border-radius:10px;padding:6px;display:grid;gap:1px;margin-top:10px}
+.cl{display:block;width:100%;text-align:left;background:none;border:0;border-radius:6px;padding:4px 8px;font:500 12px/1.4 var(--mono);color:#E8F0F5;cursor:pointer;white-space:pre;overflow:hidden}
+.cl:hover{background:#17303F}
+.cl[aria-pressed="true"]{background:#244A63}
+.arena-ctl{display:grid;gap:8px;margin-top:10px}
+.run{font-size:15px;padding:10px 16px}
+.run[disabled]{opacity:.6;cursor:progress}
+.inputs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.inputs label{display:grid;gap:3px;font:700 11px var(--mono);letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+.inputs input{font:700 16px var(--mono);padding:7px 9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%;min-width:0}
+.small{font-size:13px;line-height:1.4}
+#toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translate(-50%,24px);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;opacity:0;pointer-events:none;transition:.25s;z-index:20;max-width:calc(100% - 32px);text-align:center}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="app" id="app">
+  <div class="bar" id="bar">
+    <div class="brand"><div class="brand-mark">$</div>Price Lab</div>
+    <nav class="tabs" role="tablist" aria-label="Levels">
+      <button class="tab" role="tab" data-page="predict" id="tab-predict"><span class="lv">LV1</span>Predict</button>
+      <button class="tab" role="tab" data-page="optimize" id="tab-optimize"><span class="lv">LV2</span>Optimize</button>
+      <button class="tab" role="tab" data-page="combine" id="tab-combine"><span class="lv">LV3</span>Combine</button>
+    </nav>
+    <div class="timer">
+      <button class="btn sm" id="tPrev" aria-label="Previous level">←</button>
+      <span id="clock" role="timer">2:00</span>
+      <button class="btn sm primary" id="tGo">Start</button>
+      <button class="btn sm" id="tReset">Reset</button>
+      <button class="btn sm" id="tNext" aria-label="Next level">→</button>
+    </div>
+    <div class="xp" aria-live="polite">
+      <div class="xp-top"><span id="rank">Rookie analyst</span><span class="mono" id="xpnum">0 XP</span></div>
+      <div class="xpbar"><i id="xpfill"></i></div>
+      <div class="badges"><span class="badge" data-b="predict">PREDICT</span><span class="badge" data-b="optimize">OPTIMIZE</span><span class="badge" data-b="combine">COMBINE</span></div>
+    </div>
+    <button class="btn sm" id="cleanBtn" title="Hide this bar for recording (press H)">Clean view</button>
+  </div>
+  <button class="btn sm ghost" id="ghost">Show controls</button>
+
+  <div class="frame" id="frame"><div class="scaler" id="scaler"><div class="stage" id="stage">
+
+    <!-- LEVEL 1 -->
+    <section class="page" id="page-predict" hidden>
+      <div class="page-head">
+        <div><div class="eyebrow">Level 1 · Speaker 1</div><h1>Predict demand</h1></div>
+        <p>Two competing categories share 200 units of space. Move the prices and watch Category 1 sales react.</p>
+      </div>
+      <div class="grid g1">
+        <div class="panel">
+          <h2>Demand lab</h2>
+          <p class="sub">Demo curve to explain the idea. Your notebook's fitted model has its own numbers.</p>
+          <div class="srow"><label for="a1">Category 1 price</label><input class="k1r" type="range" id="a1" min="300" max="400" step="1" value="350"><output id="o-a1" class="mono">$350</output></div>
+          <div class="srow"><label for="a2">Category 2 price</label><input class="k2r" type="range" id="a2" min="100" max="300" step="1" value="250"><output id="o-a2" class="mono">$250</output></div>
+          <div class="shelf" style="margin-top:12px">
+            <div class="tag k1"><small>Cat 1 sold</small><b id="t-n1">100</b></div>
+            <div class="tag k2"><small>Cat 2 units</small><b id="t-n2">100</b></div>
+          </div>
+          <div class="units" id="units" aria-hidden="true"></div>
+          <div class="legend"><span>Category 1 sold (predicted)</span><span>Category 2 gets the rest: 200 − n₁</span></div>
+          <div class="delta" id="delta"></div>
+        </div>
+        <div class="col">
+          <div class="panel">
+            <h2>n₁ against p₁</h2>
+            <p class="sub" id="chart1sub"></p>
+            <svg class="chart" id="chart1" viewBox="0 0 600 200" role="img" aria-label="Predicted Category 1 sales against Category 1 price"></svg>
+          </div>
+          <div class="panel" style="flex:1">
+            <h2>Discovery missions</h2>
+            <div class="mrow" id="missions1"></div>
+            <div class="mdetail" id="mdetail"><span>Tap a mission to open it and run a live demo. Open all four to unlock the Predict badge (25 XP each).</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LEVEL 2 -->
+    <section class="page" id="page-optimize" hidden>
+      <div class="page-head">
+        <div><div class="eyebrow">Level 2 · Speaker 2</div><h1>Build the model</h1></div>
+        <p>The sliders start with a broken plan. Fix every business rule, then see what revenue it earns.</p>
+      </div>
+      <div class="grid g2">
+        <div class="panel">
+          <h2>Your pricing plan</h2>
+          <div class="srow"><label for="b1">Price p₁</label><input class="k1r" type="range" id="b1" min="250" max="450" step="1" value="380"><output id="o-b1" class="mono"></output></div>
+          <div class="srow"><label for="b2">Price p₂</label><input class="k2r" type="range" id="b2" min="50" max="350" step="1" value="340"><output id="o-b2" class="mono"></output></div>
+          <div class="srow"><label for="b3">Units n₁</label><input class="k1r" type="range" id="b3" min="0" max="200" step="1" value="30"><output id="o-b3" class="mono"></output></div>
+          <div class="srow"><label for="b4">Units n₂</label><input class="k2r" type="range" id="b4" min="0" max="200" step="1" value="150"><output id="o-b4" class="mono"></output></div>
+          <ul class="cons" id="cons"></ul>
+          <div class="srow2"><div class="status" id="status2"></div><p class="note" id="meterNote"></p></div>
+          <div class="meter" aria-hidden="true"><i id="meter"></i></div>
+          <p class="why" id="why2">Tap a rule to see why the business has it.</p>
+        </div>
+        <div class="col">
+          <div class="panel">
+            <h2>The objective</h2>
+            <div class="formula" role="group" aria-label="Objective pieces">
+              <button class="chip" data-k="rev" aria-pressed="false">Σ pc·nc</button>
+              <span class="op">−</span>
+              <button class="chip" data-k="pen" aria-pressed="false">λ Σ pc²</button>
+              <span class="op">subject to</span>
+              <button class="chip" data-k="con" aria-pressed="false">4 rules</button>
+            </div>
+            <div class="explain" id="explain2" style="min-height:62px">Maximize revenue minus a price penalty, while obeying the business rules. Tap a piece.</div>
+            <div class="srow" style="margin-top:12px"><label for="lam">Penalty λ</label><input class="k0r" type="range" id="lam" min="0" max="0.1" step="0.005" value="0"><output id="o-lam" class="mono">0</output></div>
+            <div class="stats">
+              <div class="stat"><small>Revenue</small><b id="s-rev">$0</b></div>
+              <div class="stat"><small>Penalty</small><b id="s-pen">$0</b></div>
+              <div class="stat"><small>Objective</small><b id="s-obj">$0</b></div>
+            </div>
+          </div>
+          <div class="panel" style="flex:1">
+            <h2>Shortcuts</h2>
+            <div class="seg" style="margin-top:10px">
+              <button class="btn primary" id="naive">Run the naive solver</button>
+              <button class="btn" id="shuffle">New broken plan</button>
+              <button class="btn" id="rcBtn" aria-pressed="false">Reality check</button>
+            </div>
+            <div class="reality" id="reality" hidden></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LEVEL 3 -->
+    <section class="page" id="page-combine" hidden>
+      <div class="page-head" style="margin-bottom:10px">
+        <div><div class="eyebrow">Level 3 · Speaker 3</div><h1>Combine ML and optimization</h1></div>
+        <p>Put the demand model inside the solver, run it, and compare with the plan that ignores demand.</p>
+      </div>
+      <div class="pipe" id="pipe"></div>
+      <div class="pipeText" id="pipeText"></div>
+      <div class="grid g3">
+        <div class="panel">
+          <h2>Optimizer arena</h2>
+          <div class="arena-ctl">
+            <div class="seg" role="group" aria-label="Solver mode and demand model">
+              <button class="btn sm" id="mIgnore" aria-pressed="true">Demand ignored</button>
+              <button class="btn sm" id="mAware" aria-pressed="false">Demand aware</button>
+            </div>
+            <div class="seg" role="group" aria-label="Demand model">
+              <button class="btn sm" id="mdLin" aria-pressed="true">Linear</button>
+              <button class="btn sm" id="mdGb" aria-pressed="false">Boosted</button>
+            </div>
+            <div class="srow" style="margin-top:0;grid-template-columns:84px minmax(0,1fr) 44px"><label for="lam3">Penalty λ</label><input class="k0r" type="range" id="lam3" min="0" max="0.1" step="0.005" value="0"><output id="o-lam3" class="mono">0</output></div>
+            <div><button class="btn primary run" id="run">Run optimizer</button></div>
+          </div>
+          <div class="shelf" style="margin-top:12px">
+            <div class="tag k1 sm"><small>p₁</small><b id="r-p1"></b></div>
+            <div class="tag k2 sm"><small>p₂</small><b id="r-p2"></b></div>
+            <div class="tag k1 sm"><small>n₁</small><b id="r-n1"></b></div>
+            <div class="tag k2 sm"><small>n₂</small><b id="r-n2"></b></div>
+          </div>
+          <div class="stats"><div class="stat"><small>Promised</small><b id="r-rev"></b></div><div class="stat"><small>Objective</small><b id="r-obj"></b></div><div class="stat"><small id="r-l3">If demand holds</small><b id="r-real"></b></div></div>
+          <div class="explain small" id="r-note"></div>
+        </div>
+        <div class="col">
+          <div class="panel">
+            <h2>Best result at each p₁</h2>
+            <p class="sub" id="c3sub"></p>
+            <svg class="chart" id="chart3" viewBox="0 0 480 240" role="img" aria-label="Best objective value for each Category 1 price"></svg>
+          </div>
+          <div class="panel" style="flex:1">
+            <h2>Your notebook results</h2>
+            <div class="inputs">
+              <label>p₁ ($)<input id="x1" type="number" inputmode="decimal" placeholder="e.g. 380"></label>
+              <label>p₂ ($)<input id="x2" type="number" inputmode="decimal" placeholder="e.g. 300"></label>
+              <label>n₁ (units)<input id="x3" type="number" inputmode="decimal" placeholder="e.g. 60"></label>
+            </div>
+            <div class="explain small" id="real">Type the optimal values from your Colab run. Units n₂ and revenue are calculated.</div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="panel">
+            <h2>The code</h2>
+            <div class="code" id="code"></div>
+            <div class="explain small" id="codeText">Tap a line to see what it does.</div>
+          </div>
+          <div class="panel" style="flex:1">
+            <h2>After the demo</h2>
+            <div class="seg" style="margin-top:10px" id="after">
+              <button class="chip" data-k="lam" aria-pressed="false">Sweep λ</button>
+              <button class="chip" data-k="lin" aria-pressed="false">Swap model</button>
+              <button class="chip" data-k="lim" aria-pressed="false">Limits</button>
+            </div>
+            <div class="explain small" id="afterText">Tap a topic to see where this goes next.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div></div></div>
+</div>
+<div id="toast" role="status"></div>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const fmt=n=>(n<0?'−$':'$')+Math.abs(Math.round(n)).toLocaleString('en-US');
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const S={model:'lin',xp:0,flags:{},mode:'ignore'};
+
+/* demo demand curve (illustration only): n1 falls with own price, rises with rival price */
+function demand(p1,p2,model){
+  model=model||S.model; let a=p1,b=p2;
+  if(model==='gb'){a=Math.round(p1/10)*10;b=Math.round(p2/20)*20;}
+  return Math.round(clamp(100-(a-350)+0.5*(b-300),50,150));
+}
+function search(lam,mode){
+  let best=null;
+  for(let p1=300;p1<=400;p1++){
+    for(let p2=Math.max(100,p1-100);p2<=Math.min(300,p1-50);p2++){
+      const n1=mode==='aware'?demand(p1,p2):150;
+      const rev=p1*n1+p2*(200-n1), obj=rev-lam*(p1*p1+p2*p2);
+      if(!best||obj>best.obj)best={p1,p2,n1,n2:200-n1,rev,obj};
+    }
+  }
+  return best;
+}
+function curveFor(lam,mode){
+  const pts=[];
+  for(let p1=300;p1<=400;p1++){
+    let b=-Infinity;
+    for(let p2=Math.max(100,p1-100);p2<=Math.min(300,p1-50);p2++){
+      const n1=mode==='aware'?demand(p1,p2):150;
+      const o=p1*n1+p2*(200-n1)-lam*(p1*p1+p2*p2); if(o>b)b=o;
+    }
+    pts.push([p1,b]);
+  }
+  return pts;
+}
+function niceTicks(min,max){
+  const steps=[500,1000,2000,2500,5000,10000]; let st=steps[steps.length-1];
+  for(const s of steps){ if((Math.ceil(max/s)-Math.floor(min/s))<=5){st=s;break;} }
+  const lo=Math.floor(min/st)*st, hi=Math.ceil(max/st)*st, t=[];
+  for(let v=lo;v<=hi+0.1;v+=st)t.push(v);
+  return t;
+}
+
+/* fit the 16:9 stage into the window */
+function fit(){
+  const fr=$('frame'), aw=fr.clientWidth, ah=fr.clientHeight;
+  if(!aw||!ah)return;
+  const k=Math.min(aw/1280,ah/720);
+  $('scaler').style.width=(1280*k)+'px'; $('scaler').style.height=(720*k)+'px';
+  $('stage').style.transform='scale('+k+')';
+}
+window.addEventListener('resize',fit);
+if(window.ResizeObserver){new ResizeObserver(fit).observe($('frame'));}
+function setClean(on){document.body.classList.toggle('clean',on);fit();}
+$('cleanBtn').addEventListener('click',()=>setClean(true));
+$('ghost').addEventListener('click',()=>setClean(false));
+
+/* toast, xp, badges */
+let toastT;
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2600);}
+const RANKS=[[0,'Rookie analyst'],[100,'Price tagger'],[250,'Shelf strategist'],[400,'Pricing pro']];
+function renderXP(){
+  $('xpnum').textContent=S.xp+' XP'; $('xpfill').style.width=(S.xp/400*100)+'%';
+  let r=RANKS[0][1]; RANKS.forEach(x=>{if(S.xp>=x[0])r=x[1];}); $('rank').textContent=r;
+  document.querySelectorAll('.badge').forEach(b=>b.classList.toggle('on',!!S.flags['badge_'+b.dataset.b]));
+}
+function award(key,pts,msg){
+  if(S.flags[key])return false; S.flags[key]=true; S.xp+=pts; renderXP(); toast('+'+pts+' XP · '+msg); return true;
+}
+function badge(name,label){ if(!S.flags['badge_'+name]){S.flags['badge_'+name]=true; renderXP(); setTimeout(()=>toast('Badge unlocked: '+label),700);} }
+
+/* navigation */
+const PAGES=['predict','optimize','combine'];
+let cur=0;
+function show(name){
+  const i=Math.max(0,PAGES.indexOf(name)); cur=i;
+  PAGES.forEach((p,k)=>{ $('page-'+p).hidden=k!==i; $('tab-'+p).setAttribute('aria-selected',k===i); });
+  timerReset();
+  if(i===0)upd1(); if(i===1)upd2(); if(i===2){showArena(false);}
+}
+function goto(name){ if(location.hash.slice(1)===name)show(name); else location.hash=name; }
+window.addEventListener('hashchange',()=>show(location.hash.slice(1)));
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>goto(t.dataset.page)));
+$('tPrev').addEventListener('click',()=>goto(PAGES[Math.max(0,cur-1)]));
+$('tNext').addEventListener('click',()=>goto(PAGES[Math.min(2,cur+1)]));
+document.addEventListener('keydown',e=>{
+  const tg=e.target; if(tg&&(tg.tagName==='INPUT'||tg.tagName==='TEXTAREA'))return;
+  if(e.key==='ArrowRight')goto(PAGES[Math.min(2,cur+1)]);
+  if(e.key==='ArrowLeft')goto(PAGES[Math.max(0,cur-1)]);
+  if(e.key==='h'||e.key==='H')setClean(!document.body.classList.contains('clean'));
+  if(e.key==='Escape')setClean(false);
+});
+
+/* timer */
+let tLeft=120,tRun=false,tInt=null;
+function renderClock(){
+  const m=Math.floor(Math.abs(tLeft)/60),s=Math.abs(tLeft)%60;
+  const c=$('clock'); c.textContent=(tLeft<0?'+':'')+m+':'+String(s).padStart(2,'0');
+  c.className=tLeft<0?'over':(tLeft<=20?'warn':'');
+}
+function timerReset(){tRun=false;clearInterval(tInt);tLeft=120;$('tGo').textContent='Start';renderClock();}
+$('tGo').addEventListener('click',()=>{
+  if(tRun){tRun=false;clearInterval(tInt);$('tGo').textContent='Resume';}
+  else{tRun=true;$('tGo').textContent='Pause';tInt=setInterval(()=>{tLeft--;renderClock();},1000);}
+});
+$('tReset').addEventListener('click',timerReset);
+
+function tween(el,to,ms){
+  return new Promise(res=>{
+    const from=+el.value;
+    if(reduce){el.value=to;el.dispatchEvent(new Event('input'));return res();}
+    const t0=performance.now();
+    (function step(t){
+      const k=clamp((t-t0)/ms,0,1), e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+      el.value=Math.round(from+(to-from)*e); el.dispatchEvent(new Event('input'));
+      if(k<1)requestAnimationFrame(step);else res();
+    })(t0);
+  });
+}
+function setModel(m){
+  S.model=m;
+  $('mdLin').setAttribute('aria-pressed',m==='lin'); $('mdGb').setAttribute('aria-pressed',m==='gb');
+  const a=$('m-lin'),b=$('m-gb'); if(a){a.setAttribute('aria-pressed',m==='lin');b.setAttribute('aria-pressed',m==='gb');}
+  upd1(); if(cur===1)upd2(); if(cur===2)showArena(false);
+}
+
+/* ---------- Level 1 ---------- */
+const units=$('units'); for(let i=0;i<200;i++)units.appendChild(document.createElement('i'));
+const a1=$('a1'),a2=$('a2'),REF=[350,250];
+function upd1(){
+  const p1=+a1.value,p2=+a2.value,n1=demand(p1,p2),n2=200-n1;
+  $('o-a1').textContent='$'+p1; $('o-a2').textContent='$'+p2;
+  $('t-n1').textContent=n1; $('t-n2').textContent=n2;
+  [...units.children].forEach((c,i)=>c.classList.toggle('a',i<n1));
+  const d=n1-demand(REF[0],REF[1],S.model);
+  $('delta').textContent=d===0?'At the starting prices of $350 and $250.':(d>0?'+':'−')+Math.abs(d)+' units of Category 1 compared with the starting prices.';
+  $('chart1sub').textContent=S.model==='lin'?'Linear regression draws one straight line.':'Gradient boosting builds steps from many small trees.';
+  drawChart1(p1,p2,n1);
+}
+function drawChart1(p1,p2,n1){
+  const W=600,H=200,L=44,R=14,T=12,B=34,ymin=40,ymax=160;
+  const sx=p=>L+(p-300)/100*(W-L-R), sy=n=>T+(ymax-n)/(ymax-ymin)*(H-T-B);
+  let g='';
+  [50,100,150].forEach(v=>{g+=`<line class="gl" x1="${L}" x2="${W-R}" y1="${sy(v)}" y2="${sy(v)}"/><text class="tk" x="${L-8}" y="${sy(v)+4}" text-anchor="end">${v}</text>`;});
+  [300,325,350,375,400].forEach(v=>{g+=`<text class="tk" x="${sx(v)}" y="${H-B+16}" text-anchor="middle">$${v}</text>`;});
+  let d='';for(let p=300;p<=400;p++){d+=(p===300?'M':'L')+sx(p).toFixed(1)+' '+sy(demand(p,p2)).toFixed(1);}
+  g+=`<path class="axl" d="M${L} ${T}V${H-B}H${W-R}"/><path class="curve" d="${d}"/><circle class="dot" cx="${sx(p1)}" cy="${sy(n1)}" r="7"/>`;
+  g+=`<text class="tk" x="${(L+W-R)/2}" y="${H-3}" text-anchor="middle">Category 1 price p₁</text><text class="tk" x="12" y="${T+4}">n₁</text>`;
+  $('chart1').innerHTML=g;
+}
+a1.addEventListener('input',upd1); a2.addEventListener('input',upd1);
+
+const M1=[
+ {id:'own',t:'Own price pushes sales down',b:'<p>When Category 1 gets more expensive, fewer people buy it. In the data this is a negative correlation between p[1] and n[1]. Watch the orange block shrink as p₁ rises.</p>',run:async()=>{await tween(a1,400,800);await tween(a1,300,1000);await tween(a1,350,500);}},
+ {id:'rival',t:'A rival price pulls sales up',b:'<p>When Category 2 gets more expensive, shoppers switch to Category 1. In the data this is a positive correlation between p[2] and n[1]. This cross-price effect makes the problem interesting.</p>',run:async()=>{await tween(a2,300,800);await tween(a2,100,1000);await tween(a2,250,500);}},
+ {id:'assume',t:'We assume everything sells',b:'<p>The data has no n[2] column. We assume every unit we stock sells, so the space Category 1 does not use goes to Category 2: n₂ = 200 − n₁. The model only has to predict n₁.</p>',run:async()=>{units.classList.add('pulse');setTimeout(()=>units.classList.remove('pulse'),2000);}},
+ {id:'models',t:'Two models, one job',b:'<p>Both learn n₁ from p₁ and p₂. We used a 75/25 train-test split and 5-fold cross-validation to compare them. Switch models and watch the curve change shape.</p><div class="seg"><button class="btn sm" id="m-lin" aria-pressed="true">Linear Regression</button><button class="btn sm" id="m-gb" aria-pressed="false">Gradient Boosting</button></div>',run:null}
+];
+function bindModelBtns(){
+  const a=$('m-lin'),b=$('m-gb'); if(!a)return;
+  a.setAttribute('aria-pressed',S.model==='lin'); b.setAttribute('aria-pressed',S.model==='gb');
+  a.onclick=()=>setModel('lin'); b.onclick=()=>setModel('gb');
+}
+(function(){
+  const box=$('missions1'),det=$('mdetail');
+  M1.forEach(m=>{
+    const b=document.createElement('button'); b.className='mt'; b.setAttribute('aria-pressed','false');
+    b.innerHTML=`<span class="m-check">✓</span><span class="mt-t">${m.t}</span>`;
+    b.addEventListener('click',()=>{
+      [...box.children].forEach(x=>x.setAttribute('aria-pressed',x===b));
+      det.innerHTML=`<h3>${m.t}</h3>${m.b}`; bindModelBtns();
+      b.classList.add('done'); award('m_'+m.id,25,m.t);
+      if(m.run)m.run();
+      if(M1.every(x=>S.flags['m_'+x.id]))badge('predict','Predict');
+    });
+    box.appendChild(b);
+  });
+})();
+$('mdLin').addEventListener('click',()=>setModel('lin')); $('mdGb').addEventListener('click',()=>setModel('gb'));
+
+/* ---------- Level 2 ---------- */
+const B=[$('b1'),$('b2'),$('b3'),$('b4')];
+const CONS=[
+ {n:'Total space',t:v=>v.n1+v.n2===200,d:v=>`n₁ + n₂ = ${v.n1+v.n2} (must be 200)`,w:'You only have 200 units of shelf, seats or rooms, and every unit gets assigned.'},
+ {n:'Minimum stock',t:v=>v.n1>=50&&v.n2>=50,d:v=>`n₁ = ${v.n1}, n₂ = ${v.n2} (each at least 50)`,w:'Each category must stay on offer in meaningful quantity.'},
+ {n:'Price bounds',t:v=>v.p1>=300&&v.p1<=400&&v.p2>=100&&v.p2<=300,d:v=>`p₁ = ${v.p1} (300–400), p₂ = ${v.p2} (100–300)`,w:'Each price stays inside the range the business is willing to charge.'},
+ {n:'Price ordering',t:v=>v.p1-v.p2>=50&&v.p1-v.p2<=100,d:v=>`p₁ − p₂ = ${v.p1-v.p2} (between 50 and 100)`,w:'Category 1 is the premium product, so it costs $50 to $100 more than Category 2.'}
+];
+const consEl=[];
+(function(){
+  const ul=$('cons');
+  CONS.forEach(c=>{
+    const li=document.createElement('li');
+    li.innerHTML=`<button class="con" aria-pressed="false"><span class="ico">✕</span><span class="cn">${c.n}</span><span class="cd"></span></button>`;
+    const btn=li.querySelector('.con');
+    btn.addEventListener('click',()=>{consEl.forEach(x=>x.btn.setAttribute('aria-pressed',x.btn===btn));$('why2').textContent=c.n+': '+c.w;});
+    ul.appendChild(li); consEl.push({btn,ico:li.querySelector('.ico'),cd:li.querySelector('.cd')});
+  });
+})();
+let rcOn=false;
+function vals2(){return {p1:+B[0].value,p2:+B[1].value,n1:+B[2].value,n2:+B[3].value};}
+function upd2(){
+  const v=vals2(); const lam=+$('lam').value;
+  ['b1','b2','b3','b4'].forEach((id,i)=>$('o-'+id).textContent=(i<2?'$':'')+B[i].value);
+  let ok=true;
+  CONS.forEach((c,i)=>{const pass=c.t(v);ok=ok&&pass;consEl[i].btn.classList.toggle('ok',pass);consEl[i].ico.textContent=pass?'✓':'✕';consEl[i].cd.textContent=c.d(v);});
+  const rev=v.p1*v.n1+v.p2*v.n2, pen=lam*(v.p1*v.p1+v.p2*v.p2);
+  $('s-rev').textContent=fmt(rev); $('s-pen').textContent=fmt(pen); $('s-obj').textContent=fmt(rev-pen);
+  $('o-lam').textContent=lam;
+  const st=$('status2');
+  if(ok){st.className='status ok';st.textContent='Feasible plan. All four rules pass.';}
+  else{const bad=CONS.filter(c=>!c.t(v)).length;st.className='status no';st.textContent=bad+' of 4 rules broken.';}
+  $('meter').style.width=ok?clamp(rev/75000*100,0,100)+'%':'0%';
+  $('meterNote').textContent=ok?Math.round(rev/750)+'% of the $75,000 ceiling':'Fix the rules to fill the meter';
+  if(ok&&award('feasible',100,'Feasible plan'))badge('optimize','Optimize');
+  if(rcOn)renderReality();
+}
+function renderReality(){
+  const v=vals2(), dn=demand(v.p1,v.p2), rev=v.p1*dn+v.p2*(200-dn);
+  const r=$('reality'); r.hidden=false;
+  r.innerHTML=`You assumed <b class="mono">${v.n1}</b> units of Category 1. The demo demand curve says only <b class="mono">${dn}</b> would sell at ${fmt(v.p1)} and ${fmt(v.p2)}. If demand decides and the rest goes to Category 2, revenue is <b class="mono">${fmt(rev)}</b>.`;
+}
+B.forEach(el=>el.addEventListener('input',upd2)); $('lam').addEventListener('input',upd2);
+$('naive').addEventListener('click',()=>{Promise.all([tween(B[0],400,900),tween(B[1],300,900),tween(B[2],150,900),tween(B[3],50,900)]);});
+$('shuffle').addEventListener('click',()=>{
+  let v; do{ v={p1:260+Math.floor(Math.random()*180),p2:60+Math.floor(Math.random()*280),n1:Math.floor(Math.random()*200),n2:Math.floor(Math.random()*200)}; }while(CONS.every(c=>c.t(v)));
+  B[0].value=v.p1;B[1].value=v.p2;B[2].value=v.n1;B[3].value=v.n2; upd2();
+});
+$('rcBtn').addEventListener('click',()=>{
+  rcOn=!rcOn; $('rcBtn').setAttribute('aria-pressed',rcOn);
+  if(rcOn){renderReality();award('reality',50,'Reality check');}else $('reality').hidden=true;
+});
+const EX2={rev:'Revenue is price times units, added up over both categories: p₁·n₁ + p₂·n₂.',pen:'The penalty λ·(p₁² + p₂²) grows quickly with price. It stops the model from chasing very high prices that would hurt sales. Move λ to see it bite.',con:'Four business rules: use all 200 units, keep at least 50 of each, stay inside the price ranges, and keep Category 1 $50 to $100 above Category 2.'};
+document.querySelectorAll('.formula .chip').forEach(c=>c.addEventListener('click',()=>{
+  document.querySelectorAll('.formula .chip').forEach(x=>x.setAttribute('aria-pressed',x===c)); $('explain2').textContent=EX2[c.dataset.k];
+}));
+
+/* ---------- Level 3 ---------- */
+const STG=[
+ {s:'Step 1',t:'Data',b:'Prices and sales: columns p[1], p[2] and n[1]. Category 2 sales are assumed to be whatever space is left.'},
+ {s:'Step 2',t:'Train',b:'Fit a regressor that predicts n₁ from p₁ and p₂. We compared Linear Regression and Gradient Boosting.'},
+ {s:'Step 3',t:'Embed',hot:1,b:'add_predictor_constr turns the trained model into constraints inside Gurobi. The price variables are its inputs and n[1] is its output.'},
+ {s:'Step 4',t:'Solve',b:'Revenue is price times quantity with both unknown, so the problem is non-convex. NonConvex = 2 lets Gurobi solve it to global optimality.'}
+];
+(function(){
+  const box=$('pipe');
+  STG.forEach((s,i)=>{
+    const b=document.createElement('button'); b.className='stg'+(s.hot?' hot':''); b.setAttribute('aria-pressed',i===2);
+    b.innerHTML=`<small>${s.s}</small><b>${s.t}</b>`;
+    b.addEventListener('click',()=>{[...box.children].forEach(x=>x.setAttribute('aria-pressed',x===b));$('pipeText').textContent=s.b;});
+    box.appendChild(b);
+  });
+  $('pipeText').textContent=STG[2].b;
+})();
+const CODE=[
+ ['m_feats = pd.DataFrame(\n    {"p[1]":[p[1]],"p[2]":[p[2]]})','The features are not data. They are the solver\'s own price variables, named exactly like the training columns.'],
+ ['pred_constr = add_predictor_constr(\n    m, xgb_regressor, m_feats, n[1])','Embeds the trained model. Gurobi can now only pick prices and n[1] that agree with the model\'s prediction. n[2] is not an output, it is 200 − n[1].'],
+ ['m.Params.NonConvex = 2','Tells Gurobi to accept the price × quantity terms and solve them to global optimality.'],
+ ['m.optimize()','Searches for the prices and units with the best objective that obey every rule and the demand model.']
+];
+(function(){
+  const box=$('code');
+  CODE.forEach(c=>{
+    const b=document.createElement('button'); b.className='cl'; b.setAttribute('aria-pressed','false'); b.textContent=c[0];
+    b.addEventListener('click',()=>{[...box.children].forEach(x=>x.setAttribute('aria-pressed',x===b));$('codeText').textContent=c[1];});
+    box.appendChild(b);
+  });
+})();
+const AFTER={lam:'Move the λ slider in the arena: as the penalty grows, the best prices come down. In the notebook this is a sweep over several λ values.',lin:'The notebook only embeds the Gradient Boosting model. Remove its predictor constraints, add the Linear Regression ones, and compare. The model switch in the arena previews the idea.',lim:'Every unit is assumed to sell, the data is synthetic, and there are only two categories.'};
+document.querySelectorAll('#after .chip').forEach(c=>c.addEventListener('click',()=>{
+  document.querySelectorAll('#after .chip').forEach(x=>x.setAttribute('aria-pressed',x===c)); $('afterText').textContent=AFTER[c.dataset.k];
+}));
+$('mIgnore').addEventListener('click',()=>{S.mode='ignore';modeBtns();showArena(false);});
+$('mAware').addEventListener('click',()=>{S.mode='aware';modeBtns();showArena(false);});
+function modeBtns(){$('mIgnore').setAttribute('aria-pressed',S.mode==='ignore');$('mAware').setAttribute('aria-pressed',S.mode==='aware');}
+$('lam3').addEventListener('input',()=>showArena(false));
+function renderResult(r){
+  $('r-p1').textContent='$'+r.p1;$('r-p2').textContent='$'+r.p2;$('r-n1').textContent=r.n1;$('r-n2').textContent=r.n2;
+  $('r-rev').textContent=fmt(r.rev);$('r-obj').textContent=fmt(r.obj);
+}
+function showArena(){
+  const lam=+$('lam3').value; $('o-lam3').textContent=lam;
+  const res=search(lam,S.mode); renderResult(res);
+  const dn=demand(res.p1,res.p2), realRev=res.p1*dn+res.p2*(200-dn);
+  const note=$('r-note');
+  if(S.mode==='ignore'){
+    $('r-l3').textContent='If demand holds'; $('r-real').textContent=fmt(realRev);
+    note.innerHTML=`The solver assumes <b class="mono">${res.n1}</b> units of Category 1 sell at any price, so it pushes prices up. Under the demo demand curve only <b class="mono">${dn}</b> would sell and revenue is <b class="mono">${fmt(realRev)}</b>, not the promised ${fmt(res.rev)}.`;
+  }else{
+    const blind=search(lam,'ignore'), bdn=demand(blind.p1,blind.p2), brev=blind.p1*bdn+blind.p2*(200-bdn), bobj=brev-lam*(blind.p1*blind.p1+blind.p2*blind.p2);
+    $('r-l3').textContent='Demand-blind'; $('r-real').textContent=fmt(bobj);
+    note.innerHTML=`With the demand model inside the solver the plan scores <b class="mono">${fmt(res.obj)}</b>. The demand-blind plan scores <b class="mono">${fmt(bobj)}</b> on the same measure. Gain: <b class="mono">${fmt(res.obj-bobj)}</b>.`;
+  }
+  $('c3sub').textContent=(S.mode==='aware'?'Demand aware':'Demand ignored')+' · '+(S.model==='lin'?'linear':'boosted')+' · λ = '+lam;
+  drawChart3(lam,res);
+}
+function drawChart3(lam,res){
+  const W=480,H=240,L=58,R=16,T=30,Bt=38;
+  const pts=curveFor(lam,S.mode); const ys=pts.map(p=>p[1]);
+  const ticks=niceTicks(Math.min(...ys),Math.max(...ys)), lo=ticks[0], hi=ticks[ticks.length-1];
+  const sx=p=>L+(p-300)/100*(W-L-R), sy=v=>T+(hi-v)/(hi-lo)*(H-T-Bt);
+  let g='';
+  ticks.forEach(v=>{g+=`<line class="gl" x1="${L}" x2="${W-R}" y1="${sy(v)}" y2="${sy(v)}"/><text class="tk" x="${L-8}" y="${sy(v)+4}" text-anchor="end">${v/1000}k</text>`;});
+  [300,325,350,375,400].forEach(v=>{g+=`<text class="tk" x="${sx(v)}" y="${H-Bt+16}" text-anchor="middle">$${v}</text>`;});
+  const d=pts.map((p,i)=>(i?'L':'M')+sx(p[0]).toFixed(1)+' '+sy(p[1]).toFixed(1)).join('');
+  g+=`<path class="axl" d="M${L} ${T}V${H-Bt}H${W-R}"/><path class="curve" d="${d}"/>`;
+  if(S.mode==='aware'){
+    const bl=search(lam,'ignore'); const bv=pts[bl.p1-300][1];
+    g+=`<circle class="ring" cx="${sx(bl.p1)}" cy="${sy(bv)}" r="7"/><text class="clab" x="${sx(bl.p1)-10}" y="${sy(bv)-12}" text-anchor="end">demand-blind $${bl.p1}</text>`;
+  }
+  const ox=sx(res.p1),oy=sy(pts[res.p1-300][1]);
+  g+=`<circle class="dot" cx="${ox}" cy="${oy}" r="8"/><text class="clab" x="${clamp(ox,L+60,W-R-60)}" y="${oy+24}" text-anchor="middle">${S.mode==='aware'?'optimum':'solver pick'} $${res.p1}</text>`;
+  g+=`<text class="tk" x="${(L+W-R)/2}" y="${H-3}" text-anchor="middle">Category 1 price p₁</text><text class="tk" x="6" y="12">${lam>0?'Objective':'Revenue'} ($)</text>`;
+  $('chart3').innerHTML=g;
+}
+let running=false;
+$('run').addEventListener('click',()=>{
+  if(running)return; running=true; const btn=$('run'); btn.disabled=true; btn.textContent='Searching…';
+  const finish=()=>{
+    running=false;btn.disabled=false;btn.textContent='Run optimizer'; showArena();
+    if(S.mode==='aware'){ if(award('opt',100,'Optimizer solved'))badge('combine','Combine'); }
+    else toast('Now switch to Demand aware and run it again');
+  };
+  if(reduce){finish();return;}
+  let k=0; const iv=setInterval(()=>{
+    const p1=300+Math.floor(Math.random()*101), lo=Math.max(100,p1-100),hi=Math.min(300,p1-50), p2=lo+Math.floor(Math.random()*(hi-lo+1));
+    const n1=S.mode==='aware'?demand(p1,p2):150; const rv=p1*n1+p2*(200-n1); renderResult({p1,p2,n1,n2:200-n1,rev:rv,obj:rv});
+    if(++k>=20){clearInterval(iv);finish();}
+  },70);
+});
+
+/* real run comparison */
+function updReal(){
+  const raw=['x1','x2','x3'].map(id=>$(id).value), out=$('real');
+  if(raw.some(v=>v===''||isNaN(+v))){out.textContent='Type the optimal values from your Colab run. Units n₂ and revenue are calculated.';return;}
+  const v={p1:+raw[0],p2:+raw[1],n1:+raw[2]}; v.n2=200-v.n1;
+  if(v.n1<0||v.n1>200){out.textContent='n₁ must be between 0 and 200.';return;}
+  const rev=v.p1*v.n1+v.p2*v.n2, feas=CONS.every(c=>c.t(v)), diff=rev-75000;
+  out.innerHTML=`n₂ = <b class="mono">${v.n2}</b> · revenue = <b class="mono">${fmt(rev)}</b> · ${feas?'all four rules pass':'a business rule is broken'}.<br>Against the naive $75,000 plan: <b class="mono">${(diff>=0?'+':'')+fmt(diff)}</b>. Lower is expected, since the naive plan assumed demand never drops.`;
+  award('real',50,'Your own results');
+}
+['x1','x2','x3'].forEach(id=>$(id).addEventListener('input',updReal));
+
+/* boot */
+renderXP(); renderClock(); upd1(); upd2(); showArena(); modeBtns();
+show(location.hash.slice(1)||'predict');
+fit(); requestAnimationFrame(fit);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);
+})();
+</script>
+
+</body></html>
